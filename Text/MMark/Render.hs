@@ -14,6 +14,7 @@
 -- MMark rendering machinery.
 module Text.MMark.Render
   ( render,
+    renderEnclosed,
   )
 where
 
@@ -21,7 +22,8 @@ import Control.Arrow
 import Control.Monad
 import Data.Char (isSpace)
 import Data.Function (fix)
-import Data.List.NonEmpty (NonEmpty (..))
+import Data.List.NonEmpty (NonEmpty (..), (<|))
+import Data.List (foldl')
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Text as T
 import Lucid
@@ -48,6 +50,47 @@ render MMark {..} =
     rInlines =
       (mkOisInternal &&& mapM_ (applyInlineRender extInlineRender))
         . fmap (applyInlineTrans extInlineTrans)
+
+renderEnclosed :: MMark -> Html ()
+renderEnclosed MMark {..} =
+  let (_, _, content) =
+        NE.head $ wrapTil 0 $ foldl' renderBlockEnclosed
+                                     ((0, "", mempty) :| [])
+                                     mmarkBlocks
+  in content
+  where
+    Extension {..} = mmarkExtension
+    rBlock =
+      applyBlockRender extBlockRender
+        . fmap rInlines
+        . applyBlockTrans extBlockTrans
+    rInlines =
+      (mkOisInternal &&& mapM_ (applyInlineRender extInlineRender))
+        . fmap (applyInlineTrans extInlineTrans)
+
+    wrapTil ::
+      Int ->
+      NonEmpty (Int , T.Text, Html ()) ->
+      NonEmpty (Int , T.Text, Html ())
+    wrapTil _ secs@(_ :| []) = secs
+    wrapTil n secs@((kx, ix, x) :| (ky, iy, y) : rest) =
+      if n > kx then secs
+                else wrapTil n ((ky, iy, y <> section_ [id_ ix] x) :| rest)
+
+    renderBlockEnclosed ::
+      NonEmpty (Int, T.Text, Html ()) ->
+      Bni ->
+      NonEmpty (Int, T.Text, Html ())
+    renderBlockEnclosed secs@((n , i , x) :| xs) = \case
+      Heading1 is -> enclose 1 is h1_
+      Heading2 is -> enclose 2 is h2_
+      Heading3 is -> enclose 3 is h3_
+      Heading4 is -> enclose 4 is h4_
+      Heading5 is -> enclose 5 is h5_
+      Heading6 is -> enclose 6 is h6_
+      other       -> ((n , i , x <> rBlock other) :| xs)
+      where enclose k is h =
+              (k , headerId is, h (snd $ rInlines is)) <| wrapTil k secs
 
 -- | Apply a 'Render' to a given @'Block' 'Html' ()@.
 applyBlockRender ::

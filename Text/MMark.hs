@@ -130,13 +130,14 @@ module Text.MMark
 
     -- * Rendering
     render,
+    renderEnclosed,
   )
 where
 
 import qualified Control.Foldl as L
 import Data.Aeson
 import Text.MMark.Parser (MMarkErr (..), parse)
-import Text.MMark.Render (render)
+import Text.MMark.Render (render, renderEnclosed)
 import Text.MMark.Type
 
 ----------------------------------------------------------------------------
